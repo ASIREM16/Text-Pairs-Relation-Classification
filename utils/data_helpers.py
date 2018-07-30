@@ -145,13 +145,13 @@ def data_word2vec(input_file, word2vec_model):
         input_file: The research data
         word2vec_model: The word2vec model file
     Returns:
-        The class Data(includes the data tokenindex and data labels)
+        The Class _Data(includes the data tokenindex and data labels)
     Raises:
         IOError: If the input file is not the .json file
     """
     vocab = dict([(k, v.index) for (k, v) in word2vec_model.wv.vocab.items()])
 
-    def token_to_index(content):
+    def _token_to_index(content):
         result = []
         for item in content:
             word2id = vocab.get(item)
@@ -175,11 +175,11 @@ def data_word2vec(input_file, word2vec_model):
             front_testid.append(data['front_testid'])
             behind_testid.append(data['behind_testid'])
             labels.append(data['label'])
-            front_content_indexlist.append(token_to_index(data['front_features']))
-            behind_content_indexlist.append(token_to_index(data['behind_features']))
+            front_content_indexlist.append(_token_to_index(data['front_features']))
+            behind_content_indexlist.append(_token_to_index(data['behind_features']))
             total_line += 1
 
-    class Data:
+    class _Data:
         def __init__(self):
             pass
 
@@ -207,7 +207,7 @@ def data_word2vec(input_file, word2vec_model):
         def labels(self):
             return labels
 
-    return Data()
+    return _Data()
 
 
 def load_word2vec_matrix(vocab_size, embedding_size):
