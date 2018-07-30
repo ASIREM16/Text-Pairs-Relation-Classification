@@ -139,7 +139,7 @@ def load_vocab_size(embedding_size):
 def data_word2vec(input_file, word2vec_model):
     """
     Create the research data tokenindex based on the word2vec model file.
-    Returns the class Data(includes the data tokenindex and data labels).
+    Return the class Data(includes the data tokenindex and data labels).
 
     Args:
         input_file: The research data
@@ -238,8 +238,8 @@ def load_word2vec_matrix(vocab_size, embedding_size):
 
 def load_data_and_labels(data_file, embedding_size):
     """
-    Loads research data from files, splits the data into words and generates labels.
-    Returns split sentences, labels and the max sentence length of the research data.
+    Load research data from files, splits the data into words and generates labels.
+    Return split sentences, labels and the max sentence length of the research data.
 
     Args:
         data_file: The research data
@@ -268,7 +268,7 @@ def load_data_and_labels(data_file, embedding_size):
 def pad_data(data, pad_seq_len):
     """
     Padding each sentence of research data according to the max sentence length.
-    Returns the padded data and data labels.
+    Return the padded data and data labels.
 
     Args:
         data: The research data
