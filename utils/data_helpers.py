@@ -75,7 +75,7 @@ def create_metadata_file(embedding_size, output_file=METADATA_DIR):
 
     Args:
         embedding_size: The embedding size
-        output_file: The metadata file (default: 'metadata.tsv')
+        output_file: The metadata file
     Raises:
         IOError: If word2vec model file doesn't exist
     """
@@ -121,7 +121,7 @@ def load_vocab_size(embedding_size):
 
     Args:
         embedding_size: The embedding size
-    Return:
+    Returns:
         The vocab size of the word2vec file
     Raises:
         IOError: If word2vec model file doesn't exist
@@ -145,7 +145,7 @@ def data_word2vec(input_file, word2vec_model):
         input_file: The research data
         word2vec_model: The word2vec model file
     Returns:
-        The Class _Data(includes the data tokenindex and data labels)
+        The Class Data(includes the data tokenindex and data labels)
     Raises:
         IOError: If the input file is not the .json file
     """
@@ -217,7 +217,7 @@ def load_word2vec_matrix(vocab_size, embedding_size):
     Args:
         vocab_size: The vocab size of the word2vec model file
         embedding_size: The embedding size
-    Return:
+    Returns:
         The word2vec model matrix
     Raise:
         IOError: If word2vec model file doesn't exist
