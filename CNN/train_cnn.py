@@ -248,7 +248,7 @@ def train_cnn():
                 if current_step % FLAGS.evaluate_every == 0:
                     logger.info("\nEvaluation:")
                     accuracy = validation_step(x_validation_front, x_validation_behind, y_validation,
-                                                    writer=validation_summary_writer)
+                                               writer=validation_summary_writer)
                     best_saver.handle(accuracy, sess, current_step)
                 if current_step % FLAGS.checkpoint_every == 0:
                     checkpoint_prefix = os.path.join(checkpoint_dir, "model")
