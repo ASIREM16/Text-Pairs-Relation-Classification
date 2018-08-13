@@ -7,25 +7,26 @@ import time
 import logging
 import tensorflow as tf
 
-from utils import data_helpers as dh
-from text_ann import TextANN
 from tensorboard.plugins import projector
+from text_ann import TextANN
+from utils import checkmate as cm
+from utils import data_helpers as dh
 
 # Parameters
 # ==================================================
 
-TRAIN_OR_RESTORE = input("☛ Train or Restore?(T/R) \n")
+TRAIN_OR_RESTORE = input("☛ Train or Restore?(T/R): ")
 
 while not (TRAIN_OR_RESTORE.isalpha() and TRAIN_OR_RESTORE.upper() in ['T', 'R']):
-    TRAIN_OR_RESTORE = input('✘ The format of your input is illegal, please re-input: ')
-logging.info('✔︎ The format of your input is legal, now loading to next step...')
+    TRAIN_OR_RESTORE = input("✘ The format of your input is illegal, please re-input: ")
+logging.info("✔︎ The format of your input is legal, now loading to next step...")
 
 TRAIN_OR_RESTORE = TRAIN_OR_RESTORE.upper()
 
 if TRAIN_OR_RESTORE == 'T':
-    logger = dh.logger_fn('tflog', 'logs/training-{0}.log'.format(time.asctime()))
+    logger = dh.logger_fn("tflog", "logs/training-{0}.log".format(time.asctime()))
 if TRAIN_OR_RESTORE == 'R':
-    logger = dh.logger_fn('tflog', 'logs/restore-{0}.log'.format(time.asctime()))
+    logger = dh.logger_fn("tflog", "logs/restore-{0}.log".format(time.asctime()))
 
 TRAININGSET_DIR = '../data/Train.json'
 VALIDATIONSET_DIR = '../data/Validation.json'
@@ -50,11 +51,11 @@ tf.flags.DEFINE_float("l2_reg_lambda", 0.0, "L2 regularization lambda (default: 
 # Training Parameters
 tf.flags.DEFINE_integer("batch_size", 64, "Batch Size (default: 64)")
 tf.flags.DEFINE_integer("num_epochs", 200, "Number of training epochs (default: 200)")
-tf.flags.DEFINE_integer("evaluate_every", 2000, "Evaluate model on dev set after this many steps (default: 100)")
+tf.flags.DEFINE_integer("evaluate_every", 10, "Evaluate model on dev set after this many steps (default: 100)")
 tf.flags.DEFINE_float("norm_ratio", 2, "The ratio of the sum of gradients norms of trainable variable (default: 1.25)")
 tf.flags.DEFINE_integer("decay_steps", 500, "how many steps before decay learning rate. (default: 500)")
 tf.flags.DEFINE_float("decay_rate", 0.95, "Rate of decay for learning rate. (default: 0.95)")
-tf.flags.DEFINE_integer("checkpoint_every", 500, "Save model after this many steps (default: 100)")
+tf.flags.DEFINE_integer("checkpoint_every", 10, "Save model after this many steps (default: 100)")
 tf.flags.DEFINE_integer("num_checkpoints", 5, "Number of checkpoints to store (default: 5)")
 
 # Misc Parameters
@@ -73,20 +74,20 @@ def train_ann():
     """Training ANN model."""
 
     # Load sentences, labels, and training parameters
-    logger.info('✔︎ Loading data...')
+    logger.info("✔︎ Loading data...")
 
-    logger.info('✔︎ Training data processing...')
+    logger.info("✔︎ Training data processing...")
     train_data = dh.load_data_and_labels(FLAGS.training_data_file, FLAGS.embedding_dim)
 
-    logger.info('✔︎ Validation data processing...')
+    logger.info("✔︎ Validation data processing...")
     validation_data = dh.load_data_and_labels(FLAGS.validation_data_file, FLAGS.embedding_dim)
 
-    logger.info('Recommended padding Sequence length is: {0}'.format(FLAGS.pad_seq_len))
+    logger.info("Recommended padding Sequence length is: {0}".format(FLAGS.pad_seq_len))
 
-    logger.info('✔︎ Training data padding...')
+    logger.info("✔︎ Training data padding...")
     x_train_front, x_train_behind, y_train = dh.pad_data(train_data, FLAGS.pad_seq_len)
 
-    logger.info('✔︎ Validation data padding...')
+    logger.info("✔︎ Validation data padding...")
     x_validation_front, x_validation_behind, y_validation = dh.pad_data(validation_data, FLAGS.pad_seq_len)
 
     # Build vocabulary
@@ -137,17 +138,17 @@ def train_ann():
                               "it should be like(1490175368): ")  # The model you want to restore
 
                 while not (MODEL.isdigit() and len(MODEL) == 10):
-                    MODEL = input('✘ The format of your input is illegal, please re-input: ')
-                logger.info('✔︎ The format of your input is legal, now loading to next step...')
-
-                checkpoint_dir = 'runs/' + MODEL + '/checkpoints/'
-
+                    MODEL = input("✘ The format of your input is illegal, please re-input: ")
+                logger.info("✔︎ The format of your input is legal, now loading to next step...")
                 out_dir = os.path.abspath(os.path.join(os.path.curdir, "runs", MODEL))
                 logger.info("✔︎ Writing to {0}\n".format(out_dir))
             else:
                 timestamp = str(int(time.time()))
                 out_dir = os.path.abspath(os.path.join(os.path.curdir, "runs", timestamp))
                 logger.info("✔︎ Writing to {0}\n".format(out_dir))
+
+            checkpoint_dir = os.path.abspath(os.path.join(out_dir, "checkpoints"))
+            best_checkpoint_dir = os.path.abspath(os.path.join(out_dir, "bestcheckpoints"))
 
             # Summaries for loss and accuracy
             loss_summary = tf.summary.scalar("loss", ann.loss)
@@ -164,10 +165,11 @@ def train_ann():
             validation_summary_writer = tf.summary.FileWriter(validation_summary_dir, sess.graph)
 
             saver = tf.train.Saver(tf.global_variables(), max_to_keep=FLAGS.num_checkpoints)
+            best_saver = cm.BestCheckpointSaver(save_dir=best_checkpoint_dir, num_to_keep=3, maximize=True)
 
             if FLAGS.train_or_restore == 'R':
                 # Load ann model
-                logger.info("✔ Loading model...")
+                logger.info("✔︎ Loading model...")
                 checkpoint_file = tf.train.latest_checkpoint(checkpoint_dir)
                 logger.info(checkpoint_file)
 
@@ -175,7 +177,6 @@ def train_ann():
                 saver = tf.train.import_meta_graph("{0}.meta".format(checkpoint_file))
                 saver.restore(sess, checkpoint_file)
             else:
-                checkpoint_dir = os.path.abspath(os.path.join(out_dir, "checkpoints"))
                 if not os.path.exists(checkpoint_dir):
                     os.makedirs(checkpoint_dir)
                 sess.run(tf.global_variables_initializer())
@@ -184,14 +185,14 @@ def train_ann():
                 # Embedding visualization config
                 config = projector.ProjectorConfig()
                 embedding_conf = config.embeddings.add()
-                embedding_conf.tensor_name = 'embedding'
+                embedding_conf.tensor_name = "embedding"
                 embedding_conf.metadata_path = FLAGS.metadata_file
 
                 projector.visualize_embeddings(train_summary_writer, config)
                 projector.visualize_embeddings(validation_summary_writer, config)
 
                 # Save the embedding visualization
-                saver.save(sess, os.path.join(out_dir, 'embedding', 'embedding.ckpt'))
+                saver.save(sess, os.path.join(out_dir, "embedding", "embedding.ckpt"))
 
             current_step = sess.run(ann.global_step)
 
@@ -226,6 +227,8 @@ def train_ann():
                 if writer:
                     writer.add_summary(summaries, step)
 
+                return accuracy
+
             # Generate batches
             batches = dh.batch_iter(
                 list(zip(x_train_front, x_train_behind, y_train)), FLAGS.batch_size, FLAGS.num_epochs)
@@ -240,8 +243,10 @@ def train_ann():
 
                 if current_step % FLAGS.evaluate_every == 0:
                     logger.info("\nEvaluation:")
-                    validation_step(x_validation_front, x_validation_behind, y_validation,
-                                    writer=validation_summary_writer)
+                    accuracy = validation_step(x_validation_front, x_validation_behind, y_validation,
+                                                    writer=validation_summary_writer)
+
+                    best_saver.handle(accuracy, sess, current_step)
                 if current_step % FLAGS.checkpoint_every == 0:
                     checkpoint_prefix = os.path.join(checkpoint_dir, "model")
                     path = saver.save(sess, checkpoint_prefix, global_step=current_step)

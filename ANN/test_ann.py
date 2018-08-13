@@ -6,23 +6,26 @@ import sys
 import time
 import numpy as np
 import tensorflow as tf
+
+from utils import checkmate as cm
 from utils import data_helpers as dh
 
 # Parameters
 # ==================================================
 
-logger = dh.logger_fn('tflog', 'logs/test-{0}.log'.format(time.asctime()))
+logger = dh.logger_fn("tflog", "logs/test-{0}.log".format(time.asctime()))
 
 MODEL = input("☛ Please input the model file you want to test, it should be like(1490175368): ")
 
 while not (MODEL.isdigit() and len(MODEL) == 10):
-    MODEL = input('✘ The format of your input is illegal, it should be like(1490175368), please re-input: ')
-logger.info('✔︎ The format of your input is legal, now loading to next step...')
+    MODEL = input("✘ The format of your input is illegal, it should be like(1490175368), please re-input: ")
+logger.info("✔︎ The format of your input is legal, now loading to next step...")
 
 TRAININGSET_DIR = '../data/Train.json'
 VALIDATIONSET_DIR = '../data/Validation.json'
 TESTSET_DIR = '../data/Test.json'
 MODEL_DIR = 'runs/' + MODEL + '/checkpoints/'
+BEST_MODEL_DIR = 'runs/' + MODEL + '/bestcheckpoints/'
 SAVE_DIR = 'results/' + MODEL
 
 # Data Parameters
@@ -30,6 +33,7 @@ tf.flags.DEFINE_string("training_data_file", TRAININGSET_DIR, "Data source for t
 tf.flags.DEFINE_string("validation_data_file", VALIDATIONSET_DIR, "Data source for the validation data")
 tf.flags.DEFINE_string("test_data_file", TESTSET_DIR, "Data source for the test data")
 tf.flags.DEFINE_string("checkpoint_dir", MODEL_DIR, "Checkpoint directory from training run")
+tf.flags.DEFINE_string("best_checkpoint_dir", BEST_MODEL_DIR, "Best checkpoint directory from training run")
 
 # Model Hyperparameters
 tf.flags.DEFINE_integer("pad_seq_len", 120, "Recommended padding Sequence length of data (depends on the data)")
@@ -58,19 +62,27 @@ def test_ann():
     """Test ANN model."""
 
     # Load data
-    logger.info("✔ Loading data...")
-    logger.info('Recommended padding Sequence length is: {0}'.format(FLAGS.pad_seq_len))
+    logger.info("✔︎ Loading data...")
+    logger.info("Recommended padding Sequence length is: {0}".format(FLAGS.pad_seq_len))
 
-    logger.info('✔︎ Test data processing...')
+    logger.info("✔︎ Test data processing...")
     test_data = dh.load_data_and_labels(FLAGS.test_data_file, FLAGS.embedding_dim)
 
-    logger.info('✔︎ Test data padding...')
+    logger.info("✔︎ Test data padding...")
     x_test_front, x_test_behind, y_test = dh.pad_data(test_data, FLAGS.pad_seq_len)
     y_test_labels = test_data.labels
 
     # Load ann model
-    logger.info("✔ Loading model...")
-    checkpoint_file = tf.train.latest_checkpoint(FLAGS.checkpoint_dir)
+    BEST_OR_LATEST = input("☛ Load Best or Latest Model?(B/L): ")
+
+    while not (BEST_OR_LATEST.isalpha() and BEST_OR_LATEST.upper() in ['B', 'L']):
+        BEST_OR_LATEST = input("✘ The format of your input is illegal, please re-input: ")
+    if BEST_OR_LATEST == 'B':
+        logger.info("✔︎ Loading best model...")
+        checkpoint_file = cm.get_best_checkpoint(FLAGS.best_checkpoint_dir, select_maximum_value=True)
+    else:
+        logger.info("✔︎ Loading latest model...")
+        checkpoint_file = tf.train.latest_checkpoint(FLAGS.checkpoint_dir)
     logger.info(checkpoint_file)
 
     graph = tf.Graph()
@@ -99,12 +111,12 @@ def test_ann():
             loss = graph.get_operation_by_name("loss/loss").outputs[0]
 
             # Split the output nodes name by '|' if you have several output nodes
-            output_node_names = 'output/logits|output/predictions|output/softmax_scores|output/topKPreds'
+            output_node_names = "output/logits|output/predictions|output/softmax_scores|output/topKPreds"
 
             # Save the .pb model file
             output_graph_def = tf.graph_util.convert_variables_to_constants(sess, sess.graph_def,
                                                                             output_node_names.split("|"))
-            tf.train.write_graph(output_graph_def, 'graph', 'graph-ann-{0}.pb'.format(MODEL), as_text=False)
+            tf.train.write_graph(output_graph_def, "graph", "graph-ann-{0}.pb".format(MODEL), as_text=False)
 
             # Generate batches for one epoch
             batches = dh.batch_iter(list(zip(x_test_front, x_test_behind, y_test, y_test_labels)),
@@ -135,16 +147,16 @@ def test_ann():
 
                 batch_loss = sess.run(loss, feed_dict)
                 batch_acc = sess.run(accuracy, feed_dict)
-                logger.info("✔︎ Test batch {0}: loss {1:g}, accuracy {2:g}.".format((index + 1), batch_loss, batch_acc))
+                logger.info("✔︎ Test batch {0}: loss {1:g}, accuracy {2:g}.".format((index+1), batch_loss, batch_acc))
 
             # Save the prediction result
             if not os.path.exists(SAVE_DIR):
                 os.makedirs(SAVE_DIR)
-            dh.create_prediction_file(output_file=SAVE_DIR + '/predictions.json', front_data_id=test_data.front_testid,
+            dh.create_prediction_file(output_file=SAVE_DIR + "/predictions.json", front_data_id=test_data.front_testid,
                                       behind_data_id=test_data.behind_testid, all_labels=all_labels,
                                       all_predict_labels=all_predicted_labels, all_predict_values=all_predicted_values)
 
-    logger.info("✔ Done.")
+    logger.info("✔︎ Done.")
 
 
 if __name__ == '__main__':
