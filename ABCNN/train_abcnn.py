@@ -7,25 +7,26 @@ import time
 import logging
 import tensorflow as tf
 
-from utils import data_helpers as dh
-from text_abcnn import TextABCNN
 from tensorboard.plugins import projector
+from text_abcnn import TextABCNN
+from utils import checkmate as cm
+from utils import data_helpers as dh
 
 # Parameters
 # ==================================================
 
-TRAIN_OR_RESTORE = input("☛ Train or Restore?(T/R) \n")
+TRAIN_OR_RESTORE = input("☛ Train or Restore?(T/R): ")
 
 while not (TRAIN_OR_RESTORE.isalpha() and TRAIN_OR_RESTORE.upper() in ['T', 'R']):
-    TRAIN_OR_RESTORE = input('✘ The format of your input is illegal, please re-input: ')
-logging.info('✔︎ The format of your input is legal, now loading to next step...')
+    TRAIN_OR_RESTORE = input("✘ The format of your input is illegal, please re-input: ")
+logging.info("✔︎ The format of your input is legal, now loading to next step...")
 
 TRAIN_OR_RESTORE = TRAIN_OR_RESTORE.upper()
 
 if TRAIN_OR_RESTORE == 'T':
-    logger = dh.logger_fn('tflog', 'logs/training-{0}.log'.format(time.asctime()))
+    logger = dh.logger_fn("tflog", "logs/training-{0}.log".format(time.asctime()))
 if TRAIN_OR_RESTORE == 'R':
-    logger = dh.logger_fn('tflog', 'logs/restore-{0}.log'.format(time.asctime()))
+    logger = dh.logger_fn("tflog", "logs/restore-{0}.log".format(time.asctime()))
 
 TRAININGSET_DIR = '../data/Train.json'
 VALIDATIONSET_DIR = '../data/Validation.json'
@@ -41,7 +42,6 @@ tf.flags.DEFINE_string("train_or_restore", TRAIN_OR_RESTORE, "Train or Restore."
 # Model Hyperparameters
 tf.flags.DEFINE_float("learning_rate", 0.001, "The learning rate (default: 0.001)")
 tf.flags.DEFINE_integer("pad_seq_len", 120, "Recommended padding Sequence length of data (depends on the data)")
-tf.flags.DEFINE_string("model_type", "ABCNN3", "Type of network (ABCNN1, ABCNN2, ABCNN3)")
 tf.flags.DEFINE_string("distance_type", "euclidean", "Type of distance calculation (euclidean, cos, dot)")
 tf.flags.DEFINE_integer("embedding_dim", 300, "Dimensionality of character embedding (default: 128)")
 tf.flags.DEFINE_integer("embedding_type", 1, "The embedding type (default: 1)")
@@ -77,20 +77,20 @@ def train_abcnn():
     """Training ABCNN model."""
 
     # Load sentences, labels, and training parameters
-    logger.info('✔︎ Loading data...')
+    logger.info("✔︎ Loading data...")
 
-    logger.info('✔︎ Training data processing...')
+    logger.info("✔︎ Training data processing...")
     train_data = dh.load_data_and_labels(FLAGS.training_data_file, FLAGS.embedding_dim)
 
-    logger.info('✔︎ Validation data processing...')
+    logger.info("✔︎ Validation data processing...")
     validation_data = dh.load_data_and_labels(FLAGS.validation_data_file, FLAGS.embedding_dim)
 
-    logger.info('Recommended padding Sequence length is: {0}'.format(FLAGS.pad_seq_len))
+    logger.info("Recommended padding Sequence length is: {0}".format(FLAGS.pad_seq_len))
 
-    logger.info('✔︎ Training data padding...')
+    logger.info("✔︎ Training data padding...")
     x_train_front, x_train_behind, y_train = dh.pad_data(train_data, FLAGS.pad_seq_len)
 
-    logger.info('✔︎ Validation data padding...')
+    logger.info("✔︎ Validation data padding...")
     x_validation_front, x_validation_behind, y_validation = dh.pad_data(validation_data, FLAGS.pad_seq_len)
 
     # Build vocabulary
@@ -107,13 +107,12 @@ def train_abcnn():
         with sess.as_default():
             abcnn = TextABCNN(
                 sequence_length=FLAGS.pad_seq_len,
-                model_type=FLAGS.model_type,
                 num_classes=y_train.shape[1],
                 vocab_size=VOCAB_SIZE,
                 fc_hidden_size=FLAGS.fc_hidden_size,
                 embedding_size=FLAGS.embedding_dim,
                 embedding_type=FLAGS.embedding_type,
-                filter_sizes=list(map(int, FLAGS.filter_sizes.split(","))),
+                filter_sizes=list(map(int, FLAGS.filter_sizes.split(','))),
                 num_filters=FLAGS.num_filters,
                 l2_reg_lambda=FLAGS.l2_reg_lambda,
                 pretrained_embedding=pretrained_word2vec_matrix)
@@ -144,17 +143,17 @@ def train_abcnn():
                               "it should be like(1490175368): ")  # The model you want to restore
 
                 while not (MODEL.isdigit() and len(MODEL) == 10):
-                    MODEL = input('✘ The format of your input is illegal, please re-input: ')
-                logger.info('✔︎ The format of your input is legal, now loading to next step...')
-
-                checkpoint_dir = 'runs/' + MODEL + '/checkpoints/'
-
+                    MODEL = input("✘ The format of your input is illegal, please re-input: ")
+                logger.info("✔︎ The format of your input is legal, now loading to next step...")
                 out_dir = os.path.abspath(os.path.join(os.path.curdir, "runs", MODEL))
                 logger.info("✔︎ Writing to {0}\n".format(out_dir))
             else:
                 timestamp = str(int(time.time()))
                 out_dir = os.path.abspath(os.path.join(os.path.curdir, "runs", timestamp))
                 logger.info("✔︎ Writing to {0}\n".format(out_dir))
+
+            checkpoint_dir = os.path.abspath(os.path.join(out_dir, "checkpoints"))
+            best_checkpoint_dir = os.path.abspath(os.path.join(out_dir, "bestcheckpoints"))
 
             # Summaries for loss and accuracy
             loss_summary = tf.summary.scalar("loss", abcnn.loss)
@@ -171,10 +170,11 @@ def train_abcnn():
             validation_summary_writer = tf.summary.FileWriter(validation_summary_dir, sess.graph)
 
             saver = tf.train.Saver(tf.global_variables(), max_to_keep=FLAGS.num_checkpoints)
+            best_saver = cm.BestCheckpointSaver(save_dir=best_checkpoint_dir, num_to_keep=3, maximize=True)
 
             if FLAGS.train_or_restore == 'R':
                 # Load abcnn model
-                logger.info("✔ Loading model...")
+                logger.info("✔︎ Loading model...")
                 checkpoint_file = tf.train.latest_checkpoint(checkpoint_dir)
                 logger.info(checkpoint_file)
 
@@ -182,7 +182,6 @@ def train_abcnn():
                 saver = tf.train.import_meta_graph("{0}.meta".format(checkpoint_file))
                 saver.restore(sess, checkpoint_file)
             else:
-                checkpoint_dir = os.path.abspath(os.path.join(out_dir, "checkpoints"))
                 if not os.path.exists(checkpoint_dir):
                     os.makedirs(checkpoint_dir)
                 sess.run(tf.global_variables_initializer())
@@ -191,14 +190,14 @@ def train_abcnn():
                 # Embedding visualization config
                 config = projector.ProjectorConfig()
                 embedding_conf = config.embeddings.add()
-                embedding_conf.tensor_name = 'embedding'
+                embedding_conf.tensor_name = "embedding"
                 embedding_conf.metadata_path = FLAGS.metadata_file
 
                 projector.visualize_embeddings(train_summary_writer, config)
                 projector.visualize_embeddings(validation_summary_writer, config)
 
                 # Save the embedding visualization
-                saver.save(sess, os.path.join(out_dir, 'embedding', 'embedding.ckpt'))
+                saver.save(sess, os.path.join(out_dir, "embedding", "embedding.ckpt"))
 
             current_step = sess.run(abcnn.global_step)
 
@@ -233,6 +232,8 @@ def train_abcnn():
                 if writer:
                     writer.add_summary(summaries, step)
 
+                return accuracy
+
             # Generate batches
             batches = dh.batch_iter(
                 list(zip(x_train_front, x_train_behind, y_train)), FLAGS.batch_size, FLAGS.num_epochs)
@@ -247,8 +248,9 @@ def train_abcnn():
 
                 if current_step % FLAGS.evaluate_every == 0:
                     logger.info("\nEvaluation:")
-                    validation_step(x_validation_front, x_validation_behind, y_validation,
-                                    writer=validation_summary_writer)
+                    accuracy = validation_step(x_validation_front, x_validation_behind, y_validation,
+                                               writer=validation_summary_writer)
+                    best_saver.handle(accuracy, sess, current_step)
                 if current_step % FLAGS.checkpoint_every == 0:
                     checkpoint_prefix = os.path.join(checkpoint_dir, "model")
                     path = saver.save(sess, checkpoint_prefix, global_step=current_step)
