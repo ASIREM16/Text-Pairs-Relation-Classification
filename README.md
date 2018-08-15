@@ -156,7 +156,11 @@ References:
 
 ### TextABCNN
 
-**Warning: Not finished yet 🙄!**
+**Warning: Only achieve the ABCNN-1 Model🤪!**
+
+#### TODO
+
+1. Add ABCNN-3 model.
 
 ![]()
 
