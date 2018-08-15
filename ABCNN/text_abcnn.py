@@ -3,63 +3,13 @@ __author__ = 'Randolph'
 
 import tensorflow as tf
 import numpy as np
-from tensorflow.contrib.layers import fully_connected, xavier_initializer, l2_regularizer, softmax
-import keras.backend as K
-from keras.layers import Dense, merge, TimeDistributed, Permute, Reshape
-
-
-def linear(input_, output_size, scope=None):
-    """
-    Linear map: output[k] = sum_i(Matrix[k, i] * args[i] ) + Bias[k]
-    Args:
-        input_: a tensor or a list of 2D, batch x n, Tensors.
-        output_size: int, second dimension of W[i].
-        scope: VariableScope for the created subgraph; defaults to "Linear".
-    Returns:
-        A 2D Tensor with shape [batch x output_size] equal to
-        sum_i(args[i] * W[i]), where W[i]s are newly created matrices.
-    Raises:
-        ValueError: if some of the arguments has unspecified or wrong shape.
-    """
-
-    shape = input_.get_shape().as_list()
-    if len(shape) != 2:
-        raise ValueError("Linear is expecting 2D arguments: {0}".format(str(shape)))
-    if not shape[1]:
-        raise ValueError("Linear expects shape[1] of arguments: {0}".format(str(shape)))
-    input_size = shape[1]
-
-    # Now the computation.
-    with tf.variable_scope(scope or "SimpleLinear"):
-        W = tf.get_variable("W", [output_size, input_size], dtype=input_.dtype)
-        b = tf.get_variable("b", [output_size], dtype=input_.dtype)
-
-    return tf.nn.xw_plus_b(input_, tf.transpose(W), b)
-
-
-def highway(input_, size, num_layers=1, bias=-2.0, f=tf.nn.relu, scope='Highway'):
-    """
-    Highway Network (cf. http://arxiv.org/abs/1505.00387).
-    t = sigmoid(Wy + b)
-    z = t * g(Wy + b) + (1 - t) * y
-    where g is nonlinearity, t is transform gate, and (1 - t) is carry gate.
-    """
-
-    with tf.variable_scope(scope):
-        for idx in range(num_layers):
-            g = f(linear(input_, size, scope=('highway_lin_{0}'.format(idx))))
-            t = tf.sigmoid(linear(input_, size, scope=('highway_gate_{0}'.format(idx))) + bias)
-            output = t * g + (1. - t) * input_
-            input_ = output
-
-    return output
 
 
 class TextABCNN(object):
     """A ABCNN for text classification."""
 
     def __init__(
-            self, sequence_length, num_classes, model_type, vocab_size, fc_hidden_size, embedding_size,
+            self, sequence_length, num_classes, vocab_size, fc_hidden_size, embedding_size,
             embedding_type, filter_sizes, num_filters, l2_reg_lambda=0.0, pretrained_embedding=None):
 
         # Placeholders for input, output, dropout_prob and training_tag
@@ -71,48 +21,38 @@ class TextABCNN(object):
 
         self.global_step = tf.Variable(0, trainable=False, name="Global_Step")
 
-        def cos_sim(input_x1, input_x2):
+        def _cos_sim(input_x1, input_x2):
             norm1 = tf.square(tf.reduce_sum(tf.square(input_x1), axis=1))
             norm2 = tf.square(tf.reduce_sum(tf.square(input_x2), axis=1))
             dot_products = tf.reduce_sum(input_x1 * input_x2, axis=1, name="cos_sim")
             return dot_products / (norm1 * norm2)
 
-        def make_attention_mat(input_x1, input_x2):
+        def _make_attention_mat(input_x1, input_x2):
             # shape of `input_x1` and `input_x2`: [batch_size, embedding_size, sequence_length, 1]
             # input_x2 need to transpose to the [batch_size, embedding_size, 1, sequence_length]
             # shape of output: [batch_size, sequence_length, sequence_length]
             euclidean = tf.sqrt(tf.reduce_sum(tf.square(input_x1 - tf.matrix_transpose(input_x2)), axis=1))
             return 1 / (1 + euclidean)
 
-        def w_pool(input_x, attention, filter_size, scope):
+        def _w_pool(input_x, attention, filter_size, scope):
             # input_x: [batch_size, num_filters, sequence_length + filter_size - 1, 1]
             # attention: [batch_size, sequence_length + filter_size - 1]
-            if model_type in ['ABCNN2', 'ABCNN3']:
-                pools = []
+            pools = []
 
-                # [batch_size, 1, sequence_length + filter_size - 1, 1]
-                attention = tf.transpose(tf.expand_dims(tf.expand_dims(attention, -1), -1), [0, 2, 1, 3])
+            # [batch_size, 1, sequence_length + filter_size - 1, 1]
+            attention = tf.transpose(tf.expand_dims(tf.expand_dims(attention, axis=-1), axis=-1), perm=[0, 2, 1, 3])
 
-                for i in range(sequence_length):
-                    # [batch_size, num_filters, filter_size, 1]
-                    # reduce_sum => [batch_size, num_filters, 1, 1]
-                    pools.append(
-                        tf.reduce_sum(input_x[:, :, i:i + filter_size, :] * attention[:, :, i:i + filter_size, :],
-                                      axis=2, keepdims=True))
-                # [batch_size, num_filters, sequence_length, 1]
-                w_ap = tf.concat(pools, axis=2, name="w_ap_" + scope)
-            else:
-                # [batch_size, num_filters, sequence_length, 1]
-                w_ap = tf.nn.avg_pool(
-                    input_x,
-                    ksize=[1, 1, filter_size, 1],
-                    strides=[1, 1, 1, 1],
-                    padding="VALID",
-                    name="w_ap_" + scope
-                )
+            for i in range(sequence_length):
+                # [batch_size, num_filters, filter_size, 1]
+                # reduce_sum => [batch_size, num_filters, 1, 1]
+                pools.append(
+                    tf.reduce_sum(input_x[:, :, i:i + filter_size, :] * attention[:, :, i:i + filter_size, :],
+                                  axis=2, keepdims=True))
+            # [batch_size, num_filters, sequence_length, 1]
+            w_ap = tf.concat(pools, axis=2, name="w_ap_" + scope)
             return w_ap
 
-        def all_pool(input_x, filter_size, scope):
+        def _all_pool(input_x, filter_size, scope):
             # input_x: [batch_size, num_filters, sequence_length + filter_size -1, 1]
             all_ap = tf.nn.avg_pool(
                 input_x,
@@ -121,122 +61,59 @@ class TextABCNN(object):
                 padding="VALID",
                 name="all_pool_" + scope
             )
-            all_ap_reshaped = tf.reshape(all_ap, [-1, num_filters])
+            all_ap_reshaped = tf.reshape(all_ap, shape=[-1, num_filters])
             return all_ap_reshaped
 
-        def cnn_layer(variable_scope, input_x1, input_x2, dims):
+        def _linear(input_, output_size, scope="SimpleLinear"):
             """
+            Linear map: output[k] = sum_i(Matrix[k, i] * args[i] ) + Bias[k]
             Args:
-                variable_scope: `cnn-1` or `cnn-2`
-                input_x1:
-                dims: embedding_size in `cnn-1`, num_filters in `cnn-2`
+                input_: a tensor or a list of 2D, batch x n, Tensors.
+                output_size: int, second dimension of W[i].
+                scope: VariableScope for the created subgraph; defaults to "SimpleLinear".
+            Returns:
+                A 2D Tensor with shape [batch x output_size] equal to
+                sum_i(args[i] * W[i]), where W[i]s are newly created matrices.
+            Raises:
+                ValueError: if some of the arguments has unspecified or wrong shape.
             """
 
-            with tf.name_scope(variable_scope):
-                if model_type in ['ABCNN1', 'ABCNN3']:
-                    # Attention
-                    with tf.name_scope("attention_matrix"):
-                        W_a = tf.Variable(tf.truncated_normal(shape=[sequence_length, embedding_size],
-                                                              stddev=0.1, dtype=tf.float32), name="W_a")
-                        # shape of `attention_matrix`: [batch_size, sequence_length, sequence_length]
-                        attention_matrix = make_attention_mat(self.embedded_sentence_expanded_front_trans,
-                                                              self.embedded_sentence_expanded_behind_trans)
+            shape = input_.get_shape().as_list()
+            if len(shape) != 2:
+                raise ValueError("Linear is expecting 2D arguments: {0}".format(str(shape)))
+            if not shape[1]:
+                raise ValueError("Linear expects shape[1] of arguments: {0}".format(str(shape)))
+            input_size = shape[1]
 
-                        # [batch_size, sequence_length, sequence_length] * [sequence_length, embedding_size]
-                        # einsum => [batch_size, sequence_length, embedding_size]
-                        # matrix transpose => [batch_size, embedding_size, sequence_length]
-                        # expand dims => [batch_size, embedding_size, sequence_length, 1]
-                        front_attention = tf.expand_dims(
-                            tf.matrix_transpose(tf.einsum("ijk,kl->ijl", attention_matrix, W_a)), -1)
-                        behind_attention = tf.expand_dims(
-                            tf.matrix_transpose(tf.einsum("ijk,kl->ijl", tf.matrix_transpose(attention_matrix), W_a)), -1)
+            # Now the computation.
+            with tf.variable_scope(scope):
+                W = tf.get_variable("W", [input_size, output_size], dtype=input_.dtype)
+                b = tf.get_variable("b", [output_size], dtype=input_.dtype)
 
-                        # shape of new `embedded_sentence_expanded_front`: [batch_size, sequence_length, embedding_size, 2]
-                        self.embedded_sentence_expanded_front = tf.transpose(tf.concat(
-                            [self.embedded_sentence_expanded_front_trans, front_attention], axis=3), perm=[0, 2, 1, 3])
-                        self.embedded_sentence_expanded_behind = tf.transpose(tf.concat(
-                            [self.embedded_sentence_expanded_behind_trans, behind_attention], axis=3), perm=[0, 2, 1, 3])
+            return tf.nn.xw_plus_b(input_, W, b)
 
-                for filter_size in filter_sizes:
-                    with tf.name_scope("conv-filter{0}".format(filter_size)):
-                        # Convolution Layer
-                        if model_type in ['ABCNN1', 'ABCNN3']:
-                            # The in_channels of filter_shape is 2 (two channels, origin + attention)
-                            in_channels = 2
-                        else:
-                            in_channels = 1
+        def _highway_layer(input_, size, num_layers=1, bias=-2.0, f=tf.nn.relu):
+            """
+            Highway Network (cf. http://arxiv.org/abs/1505.00387).
+            t = sigmoid(Wy + b)
+            z = t * g(Wy + b) + (1 - t) * y
+            where g is nonlinearity, t is transform gate, and (1 - t) is carry gate.
+            """
 
-                        # shape of new `embedded_sentence_expanded_front`
-                        # [batch_size, sequence_length + filter_size - 1, embedding_size, 2]
-                        self.embedded_sentence_expanded_front = tf.pad(self.embedded_sentence_expanded_front, np.array(
-                            [[0, 0], [filter_size - 1, filter_size - 1], [0, 0], [0, 0]]), "CONSTANT")
-                        self.embedded_sentence_expanded_behind = tf.pad(self.embedded_sentence_expanded_behind, np.array(
-                            [[0, 0], [filter_size - 1, filter_size - 1], [0, 0], [0, 0]]), "CONSTANT")
+            for idx in range(num_layers):
+                g = f(_linear(input_, size, scope=("highway_lin_{0}".format(idx))))
+                t = tf.sigmoid(_linear(input_, size, scope=("highway_gate_{0}".format(idx))) + bias)
+                output = t * g + (1. - t) * input_
+                input_ = output
 
-                        filter_shape = [filter_size, embedding_size, in_channels, num_filters]
-                        W = tf.Variable(tf.truncated_normal(shape=filter_shape, stddev=0.1, dtype=tf.float32), name="W")
-                        b = tf.Variable(tf.constant(0.1, shape=[num_filters], dtype=tf.float32), name="b")
-                        conv_front = tf.nn.conv2d(
-                            self.embedded_sentence_expanded_front,
-                            W,
-                            strides=[1, 1, 1, 1],
-                            padding="VALID",
-                            name="conv_front")
-
-                        conv_behind = tf.nn.conv2d(
-                            self.embedded_sentence_expanded_behind,
-                            W,
-                            strides=[1, 1, 1, 1],
-                            padding="VALID",
-                            name="conv_behind")
-
-                        # Batch Normalization Layer
-                        conv_bn_front = tf.layers.batch_normalization(
-                            tf.nn.bias_add(conv_front, b), training=self.is_training)
-                        conv_bn_behind = tf.layers.batch_normalization(
-                            tf.nn.bias_add(conv_behind, b), training=self.is_training)
-
-                        # Apply nonlinearity
-                        # [batch_size, sequence_length + filter_size - 1, 1, num_filters]
-                        conv_out_front = tf.nn.relu(conv_bn_front, name="relu_front")
-                        conv_out_behind = tf.nn.relu(conv_bn_behind, name="relu_behind")
-
-                        # [batch_size, num_filters, sequence_length + filter_size - 1, 1]
-                        conv_out_front_trans = tf.transpose(conv_out_front, perm=[0, 3, 1, 2])
-                        conv_out_behind_trans = tf.transpose(conv_out_behind, perm=[0, 3, 1, 2])
-
-                    front_attention_v2, behind_attention_v2 = None, None
-
-                    if model_type in ['ABCNN2', 'ABCNN3']:
-                        # [batch_size, sequence_length + filter_size - 1, sequence_length + filter_size - 1]
-                        attention_matrix_v2 = make_attention_mat(conv_out_front_trans, conv_out_behind_trans)
-
-                        # [batch_size, sequence_length + filter_size - 1]
-                        front_attention_v2 = tf.reduce_sum(attention_matrix_v2, axis=2)
-                        behind_attention_v2 = tf.reduce_sum(attention_matrix_v2, axis=1)
-
-                    with tf.name_scope("pool-filter{0}".format(filter_size)):
-                        # shape of `front_wp`: [batch_size, num_filters, sequence_length, 1]
-                        front_wp = w_pool(input_x=conv_out_front_trans, attention=front_attention_v2,
-                                          filter_size=filter_size, scope="front")
-                        behind_wp = w_pool(input_x=conv_out_behind_trans, attention=behind_attention_v2,
-                                           filter_size=filter_size, scope="behind")
-
-                        # shape of `front_ap`: [batch_size, num_filters]
-                        front_ap = all_pool(input_x=conv_out_front_trans, filter_size=filter_size, scope="front")
-                        behind_ap = all_pool(input_x=conv_out_behind_trans, filter_size=filter_size, scope="behind")
-
-                        FI_1, BI_1 = front_wp, behind_wp
-                        F0_1, B0_1 = front_ap, behind_ap
-                    
-
+            return output
 
         # Embedding Layer
-        with tf.device('/cpu:0'), tf.name_scope("embedding"):
+        with tf.device("/cpu:0"), tf.name_scope("embedding"):
             # Use random generated the word vector by default
             # Can also be obtained through our own word vectors trained by our corpus
             if pretrained_embedding is None:
-                self.embedding = tf.Variable(tf.random_uniform([vocab_size, embedding_size], -1.0, 1.0,
+                self.embedding = tf.Variable(tf.random_uniform([vocab_size, embedding_size], minval=-1.0, maxval=1.0,
                                                                dtype=tf.float32), trainable=True, name="embedding")
             else:
                 if embedding_type == 0:
@@ -244,89 +121,145 @@ class TextABCNN(object):
                 if embedding_type == 1:
                     self.embedding = tf.Variable(pretrained_embedding, trainable=True,
                                                  dtype=tf.float32, name="embedding")
-            self.embedded_sentence_front = tf.nn.embedding_lookup(self.embedding, self.input_x_front)
-            self.embedded_sentence_behind = tf.nn.embedding_lookup(self.embedding, self.input_x_behind)
-            self.embedded_sentence_expanded_front = tf.expand_dims(self.embedded_sentence_front, -1)
-            self.embedded_sentence_expanded_behind = tf.expand_dims(self.embedded_sentence_behind, -1)
+            embedded_sentence_front = tf.nn.embedding_lookup(self.embedding, self.input_x_front)
+            embedded_sentence_behind = tf.nn.embedding_lookup(self.embedding, self.input_x_behind)
 
-        self.embedded_sentence_front_trans = tf.transpose(self.embedded_sentence_front, perm=[0, 2, 1])
-        self.embedded_sentence_behind_trans = tf.transpose(self.embedded_sentence_behind, perm=[0, 2, 1])
+            # transpose the embedding sentence: [batch_size, embedding_size, sequence_length]
+            embedded_sentence_front_trans = tf.transpose(embedded_sentence_front, perm=[0, 2, 1])
+            embedded_sentence_behind_trans = tf.transpose(embedded_sentence_behind, perm=[0, 2, 1])
 
-        # [batch_size, embedding_size, sequence_length, 1]
-        self.embedded_sentence_expanded_front_trans = tf.expand_dims(self.embedded_sentence_front_trans, -1)
-        self.embedded_sentence_expanded_behind_trans = tf.expand_dims(self.embedded_sentence_behind_trans, -1)
+            # [batch_size, embedding_size, sequence_length, 1]
+            embedded_sentence_expanded_front_trans = tf.expand_dims(embedded_sentence_front_trans, axis=-1)
+            embedded_sentence_expanded_behind_trans = tf.expand_dims(embedded_sentence_behind_trans, axis=-1)
 
-        # Average-pooling Layer
-        with tf.name_scope("input-all-avg_pool"):
-            self.embedded_sentence_front_avg_pool = tf.nn.avg_pool(
-                self.embedded_sentence_expanded_front,
-                ksize=[sequence_length, 1, 1, 1],
-                strides=[1, 1, 1, 1],
-                padding="VALID",
-                name="all_avg_pool_front"
-            )
-
-            self.embedded_sentence_behind_avg_pool = tf.nn.avg_pool(
-                self.embedded_sentence_expanded_behind,
-                ksize=[sequence_length, 1, 1, 1],
-                strides=[1, 1, 1, 1],
-                padding="VALID",
-                name="all_avg_pool_behind"
-            )
             # shape of `L0_0` and `R0_0`: [batch_size, embedding_size]
-            self.F0_0 = tf.reshape(self.embedded_sentence_front_avg_pool, [-1, embedding_size])
-            self.B0_0 = tf.reshape(self.embedded_sentence_behind_avg_pool, [-1, embedding_size])
+            self.F0_0 = tf.reshape(tf.reduce_mean(embedded_sentence_front, axis=1), shape=[-1, embedding_size])
+            self.B0_0 = tf.reshape(tf.reduce_mean(embedded_sentence_behind, axis=1), shape=[-1, embedding_size])
 
-        pooled_outputs_front = []
-        pooled_outputs_behind = []
-        sims = []
+        # Attention Layer
+        with tf.name_scope("attention_matrix"):
+            W_a = tf.Variable(tf.truncated_normal(shape=[sequence_length, embedding_size],
+                                                  stddev=0.1, dtype=tf.float32), name="W_a")
+            # shape of `attention_matrix`: [batch_size, sequence_length, sequence_length]
+            attention_matrix = _make_attention_mat(embedded_sentence_expanded_front_trans,
+                                                   embedded_sentence_expanded_behind_trans)
 
-        FI_1, F0_1, BI_1, B0_1 = cnn_layer(variable_scope="CNN-1", x1=x1_expanded, x2=x2_expanded, d=d0)
+            # [batch_size, sequence_length, sequence_length] * [sequence_length, embedding_size]
+            # einsum => [batch_size, sequence_length, embedding_size]
+            # matrix transpose => [batch_size, embedding_size, sequence_length]
+            # expand dims => [batch_size, embedding_size, sequence_length, 1]
+            front_attention = tf.expand_dims(tf.matrix_transpose(
+                tf.einsum("ijk,kl->ijl", attention_matrix, W_a)), axis=-1)
+            behind_attention = tf.expand_dims(tf.matrix_transpose(
+                tf.einsum("ijk,kl->ijl", tf.matrix_transpose(attention_matrix), W_a)), axis=-1)
 
-        pooled_outputs_front.append(F0_1)
-        pooled_outputs_behind.append(B0_1)
+            # shape of new `embedded_sentence_expanded_trans`: [batch_size, embedding_size, sequence_length, 2]
+            embedded_sentence_expanded_front_trans = tf.concat([embedded_sentence_expanded_front_trans,
+                                                                front_attention], axis=3)
+            embedded_sentence_expanded_behind_trans = tf.concat([embedded_sentence_expanded_behind_trans,
+                                                                 behind_attention], axis=3)
 
-        # Convolution Layer
+        # Convolution layer
+        pooled_outputs_wp_front = []
+        pooled_outputs_wp_behind = []
 
-        # Combine all the pooled features
+        pooled_outputs_ap_front = []
+        pooled_outputs_ap_behind = []
+
+        for filter_size in filter_sizes:
+            with tf.name_scope("conv-filter{0}".format(filter_size)):
+                in_channels = 2  # The in_channels of filter_shape is 2 (two channels, origin + attention)
+
+                # shape of new `embedded_sentence_expanded`
+                # [batch_size, embedding_size, sequence_length + filter_size - 1, 2]
+                input_x1 = tf.pad(embedded_sentence_expanded_front_trans, np.array(
+                    [[0, 0], [0, 0], [filter_size - 1, filter_size - 1], [0, 0]]), mode="CONSTANT")
+                input_x2 = tf.pad(embedded_sentence_expanded_behind_trans, np.array(
+                    [[0, 0], [0, 0], [filter_size - 1, filter_size - 1], [0, 0]]), mode="CONSTANT")
+
+                filter_shape = [embedding_size, filter_size, in_channels, num_filters]
+                W = tf.Variable(tf.truncated_normal(shape=filter_shape, stddev=0.1, dtype=tf.float32), name="W")
+                b = tf.Variable(tf.constant(value=0.1, shape=[num_filters], dtype=tf.float32), name="b")
+                conv_front = tf.nn.conv2d(
+                    input_x1,
+                    W,
+                    strides=[1, 1, 1, 1],
+                    padding="VALID",
+                    name="conv_front")
+
+                conv_behind = tf.nn.conv2d(
+                    input_x2,
+                    W,
+                    strides=[1, 1, 1, 1],
+                    padding="VALID",
+                    name="conv_behind")
+
+                # Apply nonlinearity
+                # [batch_size, 1, sequence_length + filter_size - 1, num_filters]
+                conv_out_front = tf.nn.relu(tf.nn.bias_add(conv_front, b), name="relu_front")
+                conv_out_behind = tf.nn.relu(tf.nn.bias_add(conv_behind, b), name="relu_behind")
+
+                # [batch_size, num_filters, sequence_length + filter_size - 1, 1]
+                conv_out_front_trans = tf.transpose(conv_out_front, perm=[0, 3, 2, 1])
+                conv_out_behind_trans = tf.transpose(conv_out_behind, perm=[0, 3, 2, 1])
+
+            with tf.name_scope("attention-filter{0}".format(filter_size)):
+                # [batch_size, sequence_length + filter_size - 1, sequence_length + filter_size - 1]
+                attention_matrix_v2 = _make_attention_mat(conv_out_front_trans, conv_out_behind_trans)
+
+                # [batch_size, sequence_length + filter_size - 1]
+                front_attention_v2 = tf.reduce_sum(attention_matrix_v2, axis=2)
+                behind_attention_v2 = tf.reduce_sum(attention_matrix_v2, axis=1)
+
+            with tf.name_scope("pool-filter{0}".format(filter_size)):
+                # shape of `front_wp`: [batch_size, num_filters, sequence_length, 1]
+                front_wp = _w_pool(input_x=conv_out_front_trans, attention=front_attention_v2,
+                                   filter_size=filter_size, scope="front")
+                behind_wp = _w_pool(input_x=conv_out_behind_trans, attention=behind_attention_v2,
+                                    filter_size=filter_size, scope="behind")
+
+                # shape of `front_ap`: [batch_size, num_filters]
+                front_ap = _all_pool(input_x=conv_out_front_trans, filter_size=filter_size, scope="front")
+                behind_ap = _all_pool(input_x=conv_out_behind_trans, filter_size=filter_size, scope="behind")
+
+                pooled_outputs_wp_front.append(front_wp)
+                pooled_outputs_wp_behind.append(behind_wp)
+
+                pooled_outputs_ap_front.append(front_ap)
+                pooled_outputs_ap_behind.append(behind_ap)
+
+        # shape of `FI_1` & `BI_1`: [batch_size, num_filters_total, sequence_length, 1]
+        self.FI_1 = tf.concat(pooled_outputs_wp_front, axis=1)
+        self.BI_1 = tf.concat(pooled_outputs_wp_behind, axis=1)
+
+        # shape of `F0_1` & `B0_1`: [batch_size, num_filters_total]
+        self.F0_1 = tf.concat(pooled_outputs_ap_front, axis=1)
+        self.B0_1 = tf.concat(pooled_outputs_ap_behind, axis=1)
+
+        # Concat Layer
         num_filters_total = num_filters * len(filter_sizes)
-        self.pool_front = tf.concat(pooled_outputs_front, 1)
-        self.pool_behind = tf.concat(pooled_outputs_behind, 1)
-        # self.pool_flat_combine = tf.concat([self.pool_flat_front, self.pool_flat_behind], 1)
 
-        sims.append([cos_sim(self.F0_0, self.B0_0), cos_sim(self.pool_front, self.pool_behind)])
-        self.pool_features = tf.transpose(tf.stack(sims, axis=1), perm=[2, 0, 1])
-        print(self.pool_features)
+        # shape of `conv_front` & `conv_behind`: [batch_size, embedding_size + num_filters_total]
+        self.conv_front = tf.concat([self.F0_0, self.F0_1], axis=1)
+        self.conv_behind = tf.concat([self.B0_0, self.B0_1], axis=1)
 
-        self.fc_out = fully_connected(
-            inputs=self.pool_features,
-            num_outputs=fc_hidden_size,
-            activation_fn=tf.nn.relu,
-            weights_initializer=xavier_initializer(),
-            weights_regularizer=l2_regularizer(scale=l2_reg_lambda),
-            biases_initializer=tf.constant_initializer(0.1),
-            scope="fc"
-        )
-
-        print(self.fc_out)
-        self.haha = softmax(self.fc_out)[:, 1]
-        print(self.haha)
+        self.sims = tf.stack([_cos_sim(self.F0_0, self.B0_0), _cos_sim(self.F0_1, self.B0_1)], axis=1)
+        # shape of `conv_combine`: [batch_size, 2 * (embedding_size + num_filters_total)]
+        self.conv_combine = tf.concat([self.conv_front, self.conv_behind], axis=1)
 
         # Fully Connected Layer
         with tf.name_scope("fc"):
-            W = tf.Variable(tf.truncated_normal(shape=[num_filters_total * 2, fc_hidden_size],
+            W = tf.Variable(tf.truncated_normal(shape=[2 * (embedding_size + num_filters_total), fc_hidden_size],
                                                 stddev=0.1, dtype=tf.float32), name="W")
-            b = tf.Variable(tf.constant(0.1, shape=[fc_hidden_size], dtype=tf.float32), name="b")
-            self.fc = tf.nn.xw_plus_b(self.pool_flat_combine, W, b)
-
-            # Batch Normalization Layer
-            self.fc_bn = tf.layers.batch_normalization(self.fc, training=self.is_training)
+            b = tf.Variable(tf.constant(value=0.1, shape=[fc_hidden_size], dtype=tf.float32), name="b")
+            self.fc = tf.nn.xw_plus_b(self.conv_combine, W, b)
 
             # Apply nonlinearity
-            self.fc_out = tf.nn.relu(self.fc_bn, name="relu")
+            self.fc_out = tf.nn.relu(self.fc, name="relu")
 
         # Highway Layer
-        self.highway = highway(self.fc_out, self.fc_out.get_shape()[1], num_layers=1, bias=0, scope="Highway")
+        with tf.name_scope("highway"):
+            self.highway = _highway_layer(self.fc_out, self.fc_out.get_shape()[1], num_layers=1, bias=0)
 
         # Add dropout
         with tf.name_scope("dropout"):
@@ -336,7 +269,7 @@ class TextABCNN(object):
         with tf.name_scope("output"):
             W = tf.Variable(tf.truncated_normal(shape=[fc_hidden_size, num_classes],
                                                 stddev=0.1, dtype=tf.float32), name="W")
-            b = tf.Variable(tf.constant(0.1, shape=[num_classes], dtype=tf.float32), name="b")
+            b = tf.Variable(tf.constant(value=0.1, shape=[num_classes], dtype=tf.float32), name="b")
             self.logits = tf.nn.xw_plus_b(self.h_drop, W, b, name="logits")
             self.softmax_scores = tf.nn.softmax(self.logits, name="softmax_scores")
             self.predictions = tf.argmax(self.logits, 1, name="predictions")
@@ -355,6 +288,7 @@ class TextABCNN(object):
             correct_predictions = tf.equal(self.predictions, tf.argmax(self.input_y, 1))
             self.accuracy = tf.reduce_mean(tf.cast(correct_predictions, "float"), name="accuracy")
 
+        # TODO: Reconsider the metrics calculation
         # Number of correct predictions
         with tf.name_scope("num_correct"):
             correct = tf.equal(self.predictions, tf.argmax(self.input_y, 1))
