@@ -58,10 +58,6 @@ You can use `jieba` package if you are going to deal with the chinese text data.
 
 ### FastText
 
-
-
-![]()
-
 References:
 
 - [Bag of Tricks for Efficient Text Classification](https://arxiv.org/pdf/1607.01759.pdf)
@@ -69,8 +65,6 @@ References:
 ---
 
 ### TextANN
-
-![]()
 
 References:
 
@@ -99,8 +93,6 @@ References:
 1. Add BN-LSTM cell unit.
 2. Add attention.
 
-![]()
-
 References:
 
 - [Recurrent Neural Network for Text Classification with Multi-Task Learning](http://www.aaai.org/ocs/index.php/AAAI/AAAI15/paper/download/9745/9552)
@@ -108,8 +100,6 @@ References:
 ---
 
 ### TextCRNN
-
-![]()
 
 References:
 
@@ -119,8 +109,6 @@ References:
 
 ### TextRCNN
 
-![]()
-
 References:
 
 - **Personal ideas 🙃**
@@ -128,8 +116,6 @@ References:
 ------
 
 ### TextHAN
-
-![]()
 
 References:
 
@@ -146,8 +132,6 @@ References:
 1. Add attention penalization loss.
 2. Add visualization.
 
-![]()
-
 References:
 
 - [A STRUCTURED SELF-ATTENTIVE SENTENCE EMBEDDING](https://arxiv.org/pdf/1703.03130.pdf)
@@ -161,8 +145,6 @@ References:
 #### TODO
 
 1. Add ABCNN-3 model.
-
-![]()
 
 References:
 
