@@ -39,7 +39,7 @@ The main objective of the project is to determine whether the two sentences are 
 
 See data format in `data` folder which including the data sample files.
 
-### Data Clean & Text Segment
+### Text Segment
 
 You can use `jieba` package if you are going to deal with the chinese text data.
 
