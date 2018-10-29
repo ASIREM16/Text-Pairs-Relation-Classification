@@ -1,6 +1,6 @@
 # Deep Learning for Text Pairs Relation Classification
 
-This project is used by my bachelor graduation project, and it is also a study of TensorFlow, Deep Learning(CNN, RNN, LSTM, etc.).
+This repository is my bachelor graduation project, and it is also a study of TensorFlow, Deep Learning(CNN, RNN, LSTM, etc.).
 
 The main objective of the project is to determine whether the two sentences are similar in sentence meaning (binary classification problems) by the two given sentences based on Neural Networks (Fasttext, CNN, LSTM, etc.).
 
@@ -10,12 +10,6 @@ The main objective of the project is to determine whether the two sentences are 
 - Tensorflow 1.8 +
 - Numpy
 - Gensim
-
-## Data
-
-Research data may attract copyright protection under China law. Thus, there is only code.
-
-实验数据属于实验室与某公司的合作项目，涉及商业机密，在此不予提供，还望谅解。
 
 ## Innovation
 
@@ -34,22 +28,34 @@ Research data may attract copyright protection under China law. Thus, there is o
 7. Add several performance measures(especially the **AUC**) since the data is imbalanced.
 
 ### Code part
-1. Can choose to **train** the model directly or **restore** the model from checkpoint in `train.py`.  
+1. Can choose to **train** the model directly or **restore** the model from checkpoint in `train.py`.
 2. Add `test.py`, the **model test code**,  it can show the predict value of label of the data in Testset when create the final prediction file.
 3. Add other useful data preprocess functions in `data_helpers.py`.
 4. Use `logging` for helping recording the whole info(including parameters display, model training info, etc.).
 5. Provide the ability to save the best n checkpoints in `checkmate.py`, whereas the `tf.train.Saver` can only save the last n checkpoints.
 
-## Data Preprocessing
 
-Depends on what your data and task are.
+## Data
 
-### Text Segment
+See the `data` folder which including the data sample files.
+
+### Data Preprocessing
+
+This repository can be used in other datasets(text pairs similarity classification) by two ways:
+1. Modify your datasets into the same format of the sample.
+2. Modify the data preprocess code in `data_helpers.py`.
+
+Anyway, it should depends on what your data and task are.
+
+#### Text Segment
 
 You can use `jieba` package if you are going to deal with the chinese text data.
 
-### Pre-trained Word Vectors
+**Remember to delete the stopwords.**
 
+#### Pre-trained Word Vectors
+
+You can pre-training your word vectors in many ways:
 - Use `gensim` package to pre-train data.
 - Use `glove` tools to pre-train data.
 - Even can use a **fasttext** network to pre-train data.
