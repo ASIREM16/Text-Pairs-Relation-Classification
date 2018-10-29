@@ -37,9 +37,13 @@ The main objective of the project is to determine whether the two sentences are 
 
 ## Data
 
-See the `data` folder which including the data sample files.
+See data format in `data` folder which including the data sample files.
 
-### Data Preprocessing
+### Data Clean & Text Segment
+
+You can use `jieba` package if you are going to deal with the chinese text data.
+
+### Data Format
 
 This repository can be used in other datasets(text pairs similarity classification) by two ways:
 1. Modify your datasets into the same format of the sample.
@@ -47,15 +51,9 @@ This repository can be used in other datasets(text pairs similarity classificati
 
 Anyway, it should depends on what your data and task are.
 
-#### Text Segment
-
-You can use `jieba` package if you are going to deal with the chinese text data.
-
-**Remember to delete the stopwords.**
-
 #### Pre-trained Word Vectors
 
-You can pre-training your word vectors in many ways:
+You can pre-training your word vectors(based on your corpus) in many ways:
 - Use `gensim` package to pre-train data.
 - Use `glove` tools to pre-train data.
 - Even can use a **fasttext** network to pre-train data.
