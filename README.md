@@ -29,11 +29,10 @@ The main objective of the project is to determine whether the two sentences are 
 
 ### Code part
 1. Can choose to **train** the model directly or **restore** the model from checkpoint in `train.py`.
-2. Add `test.py`, the **model test code**,  it can show the predict value of label of the data in Testset when create the final prediction file.
+2. Add `test.py`, the **model test code**, it can show the predict value of label of the data in Testset when create the final prediction file.
 3. Add other useful data preprocess functions in `data_helpers.py`.
 4. Use `logging` for helping recording the whole info(including parameters display, model training info, etc.).
 5. Provide the ability to save the best n checkpoints in `checkmate.py`, whereas the `tf.train.Saver` can only save the last n checkpoints.
-
 
 ## Data
 
@@ -51,7 +50,7 @@ This repository can be used in other datasets(text pairs similarity classificati
 
 Anyway, it should depends on what your data and task are.
 
-#### Pre-trained Word Vectors
+### Pre-trained Word Vectors
 
 You can pre-training your word vectors(based on your corpus) in many ways:
 - Use `gensim` package to pre-train data.
@@ -117,7 +116,7 @@ References:
 
 - **Personal ideas 🙃**
 
-------
+---
 
 ### TextHAN
 
@@ -125,14 +124,13 @@ References:
 
 - [Hierarchical Attention Networks for Document Classification](https://www.cs.cmu.edu/~diyiy/docs/naacl16.pdf)
 
-------
+---
 
 ### TextSANN
 
 **Warning: Model can use but not finished yet 🤪!**
 
 #### TODO
-
 1. Add attention penalization loss.
 2. Add visualization.
 
