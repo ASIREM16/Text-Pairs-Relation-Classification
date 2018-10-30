@@ -61,7 +61,7 @@ You can pre-training your word vectors(based on your corpus) in many ways:
 
 ### FastText
 
-
+![](https://farm2.staticflickr.com/1908/43814433590_4ba52aec62_o.png)
 
 References:
 
@@ -71,7 +71,7 @@ References:
 
 ### TextANN
 
-![](https://farm2.staticflickr.com/1908/44718113105_72ec557b72_o.png)
+![](https://farm2.staticflickr.com/1908/45632072331_ba491b552f_o.png)
 
 References:
 
@@ -82,7 +82,7 @@ References:
 
 ### TextCNN
 
-![](https://farm1.staticflickr.com/650/33049175050_080d4de7ff_o.jpg)
+![](https://farm2.staticflickr.com/1979/44907317574_cd090e115f_o.png)
 
 References:
 
@@ -94,6 +94,8 @@ References:
 ### TextRNN
 
 **Warning: Model can use but not finished yet 🤪!**
+
+![](https://farm2.staticflickr.com/1969/45632447911_f9808af259_o.png)
 
 #### TODO
 
