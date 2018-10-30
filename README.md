@@ -110,6 +110,8 @@ References:
 
 ### TextCRNN
 
+![](https://farm2.staticflickr.com/1965/43815348930_b9e0824cb6_o.png)
+
 References:
 
 - **Personal ideas 🙃**
