@@ -61,6 +61,8 @@ You can pre-training your word vectors(based on your corpus) in many ways:
 
 ### FastText
 
+
+
 References:
 
 - [Bag of Tricks for Efficient Text Classification](https://arxiv.org/pdf/1607.01759.pdf)
@@ -68,6 +70,8 @@ References:
 ---
 
 ### TextANN
+
+![](https://farm2.staticflickr.com/1908/44718113105_72ec557b72_o.png)
 
 References:
 
