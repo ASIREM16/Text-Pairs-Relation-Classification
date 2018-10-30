@@ -91,7 +91,7 @@ class TextRNN(object):
                 lstm_bw_cell = rnn.DropoutWrapper(lstm_bw_cell, output_keep_prob=self.dropout_keep_prob)
 
             outputs_sentence_front, state_sentence_front = tf.nn.bidirectional_dynamic_rnn(
-                lstm_fw_cell, lstm_bw_cell,self.embedded_sentence_front, dtype=tf.float32)
+                lstm_fw_cell, lstm_bw_cell, self.embedded_sentence_front, dtype=tf.float32)
 
             outputs_sentence_behind, state_sentence_behind = tf.nn.bidirectional_dynamic_rnn(
                 lstm_fw_cell, lstm_bw_cell, self.embedded_sentence_behind, dtype=tf.float32)
