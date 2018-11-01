@@ -120,6 +120,8 @@ References:
 
 ### TextRCNN
 
+![](https://farm2.staticflickr.com/1911/31787351238_a2de21a2ef_o.png)
+
 References:
 
 - **Personal ideas 🙃**
