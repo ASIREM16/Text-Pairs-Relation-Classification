@@ -110,7 +110,7 @@ References:
 
 ### TextCRNN
 
-![](https://farm2.staticflickr.com/1928/44745826375_8a6ee03515_o.png)
+![](https://farm2.staticflickr.com/1966/30719730157_1c2f59a22c_o.png)
 
 References:
 
