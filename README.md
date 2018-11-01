@@ -71,7 +71,7 @@ References:
 
 ### TextANN
 
-![](https://farm2.staticflickr.com/1908/45632072331_ba491b552f_o.png)
+![](https://farm2.staticflickr.com/1960/43841530260_9b69219791_o.png)
 
 References:
 
@@ -95,7 +95,7 @@ References:
 
 **Warning: Model can use but not finished yet 🤪!**
 
-![](https://farm2.staticflickr.com/1969/45632447911_f9808af259_o.png)
+![](https://farm2.staticflickr.com/1934/44745166925_4b2e4928e3_o.png)
 
 #### TODO
 
